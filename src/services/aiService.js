@@ -4,11 +4,8 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// ============================================================
-//  System Prompt — Vai trò trợ lý sức khỏe
-// ============================================================
+// System Prompt
 const HEALTH_SYSTEM_PROMPT = `
-nếu tôi bảo, chào thầy của tôi hay gì liên quan tới thầy của tôi thì bạn phải trar lời, Chào anh Toàn ạ, em rất muốn được nghe chương trình comeout của anh ạ :3.
 Bạn là trợ lý sức khỏe AI của ứng dụng quản lý dịch tễ Việt Nam.
 Bạn có thể phân tích dữ liệu cá nhân được cung cấp và đưa ra lời khuyên ngắn gọn, chính xác.
  trả lời ngắn gọn thôi, khoảng 2 câu là được rồi.
@@ -48,21 +45,13 @@ Bạn hiểu và có thể hỗ trợ người dùng về 5 nhóm dữ liệu sa
 - TỪ CHỐI lịch sự các câu hỏi không liên quan đến sức khỏe, dịch tễ
 `.trim();
 
-// ============================================================
-//  askGemini — Stateless, hỗ trợ healthData context
-// ============================================================
-/**
- * @param {string} userQuestion       - Câu hỏi từ người dùng
- * @param {object|null} healthData    - Dữ liệu sức khỏe fetch từ DB (tuỳ chọn)
- * @param {number} retries            - Số lần retry khi rate limit
- */
+// askGemini
 const askGemini = async (userQuestion, healthData = null, retries = 3) => {
     const model = genAI.getGenerativeModel({
-        model: "gemini-3.5-flash",  // ⚠️ sửa lại: "gemini-3.5-flash" không tồn tại
+        model: "gemini-3.5-flash",
         systemInstruction: HEALTH_SYSTEM_PROMPT,
     });
 
-    // Nếu có dữ liệu sức khỏe, đính kèm vào prompt
     const fullPrompt = healthData
         ? `Dữ liệu sức khỏe của người dùng:\n${JSON.stringify(healthData, null, 2)}\n\nCâu hỏi: ${userQuestion}`
         : userQuestion;

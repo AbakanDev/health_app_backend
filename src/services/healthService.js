@@ -1,8 +1,8 @@
-const db = require('../config/db'); // Import kết nối database 
+const db = require('../config/db');
 
+// Lịch sử tiêm chủng
 const getVaccineDosesByCCCD = async (cccd) => {
     try {
-        // Query kết hợp (JOIN) bảng NGUOIDUNG và TIEMCHUNG
         const query = `
             SELECT t.SoMui, t.LoaiVacXin, t.NgayTiem, n.HoTen
             FROM TIEMCHUNG t
@@ -14,10 +14,11 @@ const getVaccineDosesByCCCD = async (cccd) => {
         const [rows] = await db.execute(query, [cccd]);
         return rows; 
     } catch (error) {
-        throw error; // Ném lỗi ra để Controller bắt
+        throw error;
     }
 };
 
+// Lịch sử cách ly
 const getActiveQuarantines = async (cccd) => {
     const query = `
         SELECT 
@@ -32,11 +33,11 @@ const getActiveQuarantines = async (cccd) => {
         WHERE nd.CCCD = ? AND CURDATE() BETWEEN cl.NgayBatDau AND cl.NgayKetThuc;
     `;
     
-    // Thực thi câu truy vấn với tham số cccd
     const [rows] = await db.execute(query, [cccd]);
     return rows;
 };
 
+// Lịch sử xét nghiệm
 const getTestHistoryByCCCD = async (cccd) => {
     try {
         const query = `
@@ -63,9 +64,8 @@ const getTestHistoryByCCCD = async (cccd) => {
     }
 };
 
+// Biểu đồ xu hướng F0
 const getF0TrendThisYear = async () => {
-    // Câu query đếm số ca dương tính theo từng tháng trong năm nay
-    // Chú ý: Đổi chữ 'Dương tính' thành giá trị thực tế bạn lưu trong cột KetQua
     const query = `
         SELECT 
             MONTH(NgayXetNghiem) as month, 
@@ -79,19 +79,17 @@ const getF0TrendThisYear = async () => {
     `;
 
     const [rows] = await db.execute(query);
-
-    // Khởi tạo mảng 12 tháng với giá trị mặc định là 0
     const monthlyData = new Array(12).fill(0);
 
-    // Đổ dữ liệu từ DB vào mảng dựa theo index (tháng 1 là index 0)
     rows.forEach(row => {
-        const monthIndex = row.month - 1; // MySQL trả về tháng 1-12, mảng JS từ 0-11
+        const monthIndex = row.month - 1;
         monthlyData[monthIndex] = row.total_cases;
     });
 
     return monthlyData;
 };
 
+// Tỷ lệ tiêm chủng
 const getVaccinationRates = async () => {
     const query = `
         SELECT 
@@ -109,11 +107,10 @@ const getVaccinationRates = async () => {
     `;
 
     const [rows] = await db.execute(query);
-    
-    // Vì kết quả trả về chỉ có 1 dòng chứa TyLeMui1 và TyLeMui2, ta lấy phần tử đầu tiên
     return rows[0]; 
 };
 
+// Tổng quan Dashboard
 const getDashboardStats = async () => {
     try {
         const queryF0 = `
@@ -179,11 +176,11 @@ const getDashboardStats = async () => {
     }
 };
 
+// Thống kê tiếp xúc
 const getContactStatsByCCCD = async (cccd) => {
     try {
         const query = `
             WITH TargetUser AS (
-                -- Lấy MaNguoiDung dựa trên CCCD truyền vào
                 SELECT MaNguoiDung FROM NGUOIDUNG WHERE CCCD = ? LIMIT 1
             ),
             NguoiTiepXuc AS (
@@ -214,16 +211,14 @@ const getContactStatsByCCCD = async (cccd) => {
             LEFT JOIN TrangThaiMoiNhat t ON n.MaNguoiDungKhac = t.MaNguoiDung;
         `;
         
-        // Thực thi câu lệnh với tham số cccd
         const [rows] = await db.execute(query, [cccd]);
-        
-        // Vì kết quả trả về bằng hàm SUM/COUNT chỉ có duy nhất 1 dòng, ta lấy phần tử đầu tiên
         return rows[0]; 
     } catch (error) {
         throw error;
     }
 };
 
+// Lịch sử tiếp xúc
 const getContactHistoryByCCCD = async (cccd) => {
     try {
         const query = `
@@ -237,12 +232,10 @@ const getContactHistoryByCCCD = async (cccd) => {
                 nd.HoTen AS TenNguoiTiepXuc,
                 COALESCE(cd.MaCapDo, 'An Toàn') AS CapDoDichTeHienTai
             FROM LICHSUTIEPXUC lstx
-            -- Tìm thông tin người đối diện trong cuộc gặp (loại trừ chính mình)
             JOIN NGUOIDUNG nd ON nd.MaNguoiDung = CASE 
                 WHEN lstx.MaNguoiDung1 = (SELECT MaNguoiDung FROM TargetUser) THEN lstx.MaNguoiDung2 
                 ELSE lstx.MaNguoiDung1 
             END
-            -- Lấy cấp độ dịch tễ MỚI NHẤT của người đối diện (nếu có)
             LEFT JOIN (
                 SELECT g1.MaNguoiDung, g1.MaCapDo
                 FROM GHINHANCAPDO g1
@@ -257,7 +250,6 @@ const getContactHistoryByCCCD = async (cccd) => {
             ORDER BY lstx.ThoiGian DESC;
         `;
         
-        // Thực thi câu lệnh với tham số cccd
         const [rows] = await db.execute(query, [cccd]);
         return rows; 
     } catch (error) {
@@ -265,6 +257,7 @@ const getContactHistoryByCCCD = async (cccd) => {
     }
 };
 
+// Thống kê Check-in
 const getCheckinStatsByCCCD = async (cccd) => {
     try {
         const query = `
@@ -280,12 +273,13 @@ const getCheckinStatsByCCCD = async (cccd) => {
         `;
         
         const [rows] = await db.execute(query, [cccd]);
-        return rows[0]; // Trả về object đầu tiên vì query dùng hàm tổng hợp (COUNT, SUM)
+        return rows[0];
     } catch (error) {
         throw error;
     }
 };
 
+// Lịch sử Check-in
 const getCheckinHistoryByCCCD = async (cccd) => {
     try {
         const query = `
@@ -312,6 +306,7 @@ const getCheckinHistoryByCCCD = async (cccd) => {
     }
 };
 
+// Lịch sử khai báo y tế
 const getHealthDeclarationHistoryByCCCD = async (cccd) => {
     try {
         const query = `
@@ -332,9 +327,8 @@ const getHealthDeclarationHistoryByCCCD = async (cccd) => {
     }
 };
 
-// sử dụng procedure sp_KhaiBaoYTe
+// Tạo tờ khai y tế
 const createHealthDeclaration = async (declarationData) => {
-    // Bổ sung MaTaiKhoan để chạy SP phân quyền
     const { MaTaiKhoan, TiepXucF0, CoBenhNen, ChiTietBenhNen, DiVeTuVungDich, danhSachTrieuChung } = declarationData;
     const MaToKhai = `TK_${Date.now()}`;
     const conn = await db.getConnection();
@@ -342,13 +336,11 @@ const createHealthDeclaration = async (declarationData) => {
     try {
         await conn.beginTransaction();
 
-        // 1. Gọi Stored Procedure Tạo tờ khai y tế
         await conn.execute(
             `CALL sp_KhaiBaoYTe(?, ?, ?, ?, ?, ?)`,
             [MaTaiKhoan, MaToKhai, TiepXucF0, CoBenhNen, ChiTietBenhNen || null, DiVeTuVungDich]
         );
 
-        // 2. Gọi Stored Procedure Ghi nhận từng triệu chứng (nếu có)
         if (danhSachTrieuChung && danhSachTrieuChung.length > 0) {
             for (const maTC of danhSachTrieuChung) {
                 await conn.execute(
@@ -358,7 +350,6 @@ const createHealthDeclaration = async (declarationData) => {
             }
         }
 
-        // 3. Đọc lại bản ghi vừa tạo
         const [rows] = await conn.execute(
             `SELECT 
                 1 AS LanKhaiBao,
@@ -379,6 +370,7 @@ const createHealthDeclaration = async (declarationData) => {
     }
 };
 
+// Lịch sử khai báo xuất nhập cảnh
 const getImmigrationHistoryByCCCD = async (cccd) => {
     try {
         const query = `
@@ -405,6 +397,7 @@ const getImmigrationHistoryByCCCD = async (cccd) => {
     }
 };
 
+// Danh sách cửa khẩu
 const getAllCuaKhau = async () => {
     try {
         const query = `
@@ -419,6 +412,7 @@ const getAllCuaKhau = async () => {
     }
 };
 
+// Tạo tờ khai xuất nhập cảnh
 const createImmigrationDeclaration = async ({ MaNguoiDung, MaCuaKhau }) => {
     const MaToKhaiXNC = `XNC_${Date.now()}`;
     const conn = await db.getConnection();
@@ -431,7 +425,6 @@ const createImmigrationDeclaration = async ({ MaNguoiDung, MaCuaKhau }) => {
             [MaToKhaiXNC, MaNguoiDung, MaCuaKhau]
         );
 
-        // Đọc lại bản ghi vừa tạo kèm thông tin cửa khẩu
         const [rows] = await conn.execute(
             `SELECT 
                 xnc.MaToKhaiXNC,
@@ -456,16 +449,14 @@ const createImmigrationDeclaration = async ({ MaNguoiDung, MaCuaKhau }) => {
     }
 };
 
-// sử dụng procedure sp_CheckIn
+// Tạo lượt Check-in
 const createCheckin = async ({ MaTaiKhoan, MaKhuVuc }) => {
     try {
-        // Gọi SP Checkin (Tự động lấy MaNguoiDung từ MaTaiKhoan trong DB)
         await db.execute(
             `CALL sp_CheckIn(?, ?)`,
             [MaTaiKhoan, MaKhuVuc]
         );
 
-        // Lấy thông tin khu vực trả về cho frontend
         const [rows] = await db.execute(
             `SELECT 
                 k.TenKhuVuc,
@@ -487,6 +478,7 @@ const createCheckin = async ({ MaTaiKhoan, MaKhuVuc }) => {
     }
 };
 
+// Cập nhật chỉ số y tế tổng quan
 const getMedicalOverview = async () => {
     try {
         const queryF0 = `SELECT COUNT(DISTINCT MaNguoiDung) AS TongCaBenh FROM GHINHANCAPDO WHERE MaCapDo = 'F0';`;

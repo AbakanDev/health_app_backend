@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const login = async (req, res) => {
     const { TenDangNhap, MatKhau } = req.body;
 
-    // 1. Kiểm tra xem người dùng có gửi đủ dữ liệu không
+    // 1. Kiểm tra dữ liệu đầu vào
     if (!TenDangNhap || !MatKhau) {
         return res.status(400).json({ message: 'Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu!' });
     }
@@ -22,12 +22,12 @@ const login = async (req, res) => {
 
         const user = users[0];
 
-        // 3. So sánh mật khẩu (KHÔNG MÃ HÓA, so sánh trực tiếp)
+        // 3. So sánh mật khẩu
         if (MatKhau !== user.MatKhau) {
             return res.status(401).json({ message: 'Mật khẩu không chính xác!' });
         }
 
-        // 4. Lấy thêm thông tin HoTen và CCCD từ bảng NGUOIDUNG để hiển thị trên App
+        // 4. Lấy thêm thông tin HoTen và CCCD từ bảng NGUOIDUNG
         const [userDetails] = await pool.query(
             'SELECT HoTen, CCCD FROM NGUOIDUNG WHERE MaNguoiDung = ?',
             [user.MaNguoiDung]
@@ -35,7 +35,7 @@ const login = async (req, res) => {
         const hoTen = userDetails.length > 0 ? userDetails[0].HoTen : 'Unknown';
         const cccd = userDetails.length > 0 ? userDetails[0].CCCD : ''; 
 
-        // 5. Tạo Token (Thẻ thông hành phiên đăng nhập)
+        // 5. Tạo Token
         const token = jwt.sign(
             {
                 MaTaiKhoan: user.MaTaiKhoan,
@@ -47,7 +47,7 @@ const login = async (req, res) => {
             { expiresIn: '1d' } 
         );
 
-        // 6. Trả kết quả thành công về cho Client
+        // 6. Trả kết quả thành công
         return res.status(200).json({
             message: 'Đăng nhập thành công!',
             token: token,
@@ -66,25 +66,20 @@ const login = async (req, res) => {
 };
 
 const register = async (req, res) => {
-    // Nhận các trường dữ liệu từ Android gửi lên
     const { HoTen, CCCD, NgaySinh, GioiTinh, SDT, DiaChi, Email, MatKhau } = req.body;
 
-    // 1. Kiểm tra các trường bắt buộc để tránh crash DB
+    // 1. Kiểm tra các trường bắt buộc
     if (!HoTen || !CCCD || !MatKhau) {
         return res.status(400).json({ message: 'Vui lòng điền đầy đủ thông tin bắt buộc (Họ tên, CCCD, Mật khẩu)!' });
     }
 
-    // Tên đăng nhập giống hệt CCCD theo yêu cầu
     const TenDangNhap = CCCD; 
-
-    // Xin cấp một kết nối (connection) từ pool để chạy Transaction
     const connection = await pool.getConnection();
 
     try {
-        // Bắt đầu Transaction (giao dịch)
         await connection.beginTransaction();
 
-        // 2. Insert thông tin vào bảng NGUOIDUNG trước
+        // 2. Insert thông tin vào bảng NGUOIDUNG
         const queryNguoiDung = `
             INSERT INTO NGUOIDUNG (HoTen, CCCD, NgaySinh, GioiTinh, SDT, DiaChi, Email) 
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -93,10 +88,9 @@ const register = async (req, res) => {
             HoTen, CCCD, NgaySinh, GioiTinh, SDT, DiaChi, Email
         ]);
 
-        // Lấy MaNguoiDung tự động tăng vừa được sinh ra từ bảng NGUOIDUNG
         const maNguoiDungMoi = resultNguoiDung.insertId;
 
-        // 3. Dùng MaNguoiDung đó để insert tiếp vào bảng TAIKHOAN (Lưu mật khẩu trực tiếp)
+        // 3. Insert thông tin vào bảng TAIKHOAN
         const queryTaiKhoan = `
             INSERT INTO TAIKHOAN (TenDangNhap, MatKhau, MaNguoiDung) 
             VALUES (?, ?, ?)
@@ -105,7 +99,7 @@ const register = async (req, res) => {
             TenDangNhap, MatKhau, maNguoiDungMoi
         ]);
 
-        // 4. Nếu cả 2 lệnh trên thành công, xác nhận lưu vĩnh viễn vào DB
+        // 4. Xác nhận Transaction
         await connection.commit();
 
         return res.status(201).json({
@@ -117,23 +111,21 @@ const register = async (req, res) => {
         });
 
     } catch (error) {
-        // Nếu có bất kỳ lỗi nào xảy ra trong block `try`, hủy bỏ lệnh chèn của cả 2 bảng
         await connection.rollback();
         console.error('Lỗi khi đăng ký:', error);
 
-        // Bắt lỗi trùng CCCD hoặc trùng Tên đăng nhập (Ràng buộc UNIQUE trong SQL)
+        // Bắt lỗi trùng CCCD hoặc trùng Tên đăng nhập (Ràng buộc UNIQUE)
         if (error.code === 'ER_DUP_ENTRY') {
             return res.status(409).json({ message: 'Tài khoản hoặc Số căn cước công dân đã tồn tại trên hệ thống!' });
         }
 
         return res.status(500).json({ message: 'Lỗi server nội bộ' });
     } finally {
-        // Luôn luôn giải phóng kết nối trả lại cho pool để không bị nghẽn DB
         connection.release();
     }
 };
 
-// --- HÀM LẤY DỮ LIỆU TIÊM CHỦNG TỪ DATABASE CHUẨN ---
+// --- API LẤY DỮ LIỆU TIÊM CHỦNG ---
 const getThongTinTiemChung = async (req, res) => {
     const cccd = req.params.cccd;
 
@@ -165,9 +157,9 @@ const getThongTinTiemChung = async (req, res) => {
         
         const [danhSachTiem] = await pool.query(queryTiemChung, [maNguoiDung]);
 
-        // 3. Tính toán màu thẻ tự động dựa trên số mũi tiêm đếm được
+        // 3. Tính toán màu thẻ dựa trên số mũi tiêm
         const soMuiTiem = danhSachTiem.length;
-        let loaiThe = 'DO'; // Mặc định Thẻ Đỏ
+        let loaiThe = 'DO'; 
         
         if (soMuiTiem === 1) {
             loaiThe = 'VANG';
@@ -175,7 +167,7 @@ const getThongTinTiemChung = async (req, res) => {
             loaiThe = 'XANH';
         }
 
-        // 4. Trả kết quả về cho Android đúng chuẩn
+        // 4. Trả kết quả 
         return res.status(200).json({
             message: 'Lấy dữ liệu tiêm chủng thành công!',
             soMuiTiem: soMuiTiem,

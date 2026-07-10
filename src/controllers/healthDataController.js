@@ -3,7 +3,7 @@ const { askGemini } = require('../services/aiService');
 
 const getVaccineInfo = async (req, res) => {
     try {
-        const cccd = req.params.cccd; // Lấy CCCD từ URL
+        const cccd = req.params.cccd;
 
         if (!cccd) {
             return res.status(400).json({ message: 'Vui lòng cung cấp CCCD' });
@@ -39,14 +39,13 @@ const getQuarantineStatus = async (req, res) => {
 
         const quarantineList = await healthService.getActiveQuarantines(cccd);
         
-        // Nếu mảng có phần tử tức là đang trong thời gian cách ly
         const isQuarantined = quarantineList.length > 0;
 
         return res.status(200).json({
             success: true,
             message: isQuarantined ? 'Công dân đang trong diện cách ly' : 'Công dân không bị cách ly',
             isQuarantined: isQuarantined,
-            data: quarantineList // Chứa thông tin ngày bắt đầu, kết thúc, địa điểm (nếu có)
+            data: quarantineList
         });
     } catch (error) {
         console.error('Lỗi khi lấy dữ liệu cách ly:', error);
@@ -96,7 +95,6 @@ const getTestStatus = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Vui lòng cung cấp CCCD' });
         }
 
-        // Lấy lịch sử (đã sắp xếp mới nhất lên đầu)
         const data = await healthService.getTestHistoryByCCCD(cccd);
 
         if (data.length === 0) {
@@ -108,7 +106,6 @@ const getTestStatus = async (req, res) => {
             });
         }
 
-        // Tình trạng mới nhất là phần tử đầu tiên của mảng
         const latestTest = data[0];
 
         return res.status(200).json({
@@ -131,7 +128,7 @@ const getTrendAnalysis = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Lấy dữ liệu xu hướng thành công",
-            data: trendData // Sẽ trả về mảng ví dụ: [1200, 1500, 2800, 0, 0, ...]
+            data: trendData
         });
     } catch (error) {
         console.error("Lỗi khi lấy dữ liệu trend analysis:", error);
@@ -180,7 +177,7 @@ const getDashboardSummary = async (req, res) => {
 
 const getContactStats = async (req, res) => {
     try {
-        const cccd = req.params.cccd; // Lấy CCCD từ URL giống như các hàm trước
+        const cccd = req.params.cccd;
 
         if (!cccd) {
             return res.status(400).json({ 
@@ -191,7 +188,6 @@ const getContactStats = async (req, res) => {
 
         const data = await healthService.getContactStatsByCCCD(cccd);
 
-        // Trường hợp không tìm thấy người dùng hoặc không có lượt tiếp xúc nào (Tổng lượt tiếp xúc bằng 0)
         if (!data || data.TongLuotTiepXuc === 0) {
             return res.status(200).json({
                 success: true,
@@ -333,7 +329,6 @@ const getHealthDeclarationHistory = async (req, res) => {
             });
         }
 
-        // Gọi hàm từ service (thay healthService bằng tên biến bạn import)
         const data = await healthService.getHealthDeclarationHistoryByCCCD(cccd);
 
         if (data.length === 0) {
@@ -363,7 +358,6 @@ const getHealthDeclarationHistory = async (req, res) => {
 const submitHealthDeclaration = async (req, res) => {
     try {
         const { TiepXucF0, CoBenhNen, ChiTietBenhNen, DiVeTuVungDich, danhSachTrieuChung } = req.body;
-        // Cần MaTaiKhoan từ token để SP kiểm tra quyền
         const MaTaiKhoan = req.user.MaTaiKhoan; 
 
         if (TiepXucF0 === undefined || CoBenhNen === undefined || DiVeTuVungDich === undefined) {
@@ -390,7 +384,6 @@ const submitHealthDeclaration = async (req, res) => {
 
     } catch (error) {
         console.error('Lỗi khi tạo tờ khai y tế:', error);
-        // Bắt lỗi từ SIGNAL SQLSTATE trong Stored Procedure
         if (error.message.includes('[Lỗi QH')) {
             return res.status(403).json({ success: false, message: error.message });
         }
@@ -409,7 +402,6 @@ const getImmigrationHistory = async (req, res) => {
             });
         }
 
-        // Gọi hàm từ service (đảm bảo bạn đã import healthService)
         const data = await healthService.getImmigrationHistoryByCCCD(cccd);
 
         if (data.length === 0) {
@@ -456,7 +448,7 @@ const getCuaKhauList = async (req, res) => {
 const submitImmigrationDeclaration = async (req, res) => {
     try {
         const { MaCuaKhau } = req.body;
-        const MaNguoiDung = req.user.MaNguoiDung; // từ verifyToken
+        const MaNguoiDung = req.user.MaNguoiDung; 
 
         console.log('>>> req.body:', req.body);
         console.log('>>> MaCuaKhau:', MaCuaKhau);
@@ -520,8 +512,7 @@ const submitCheckin = async (req, res) => {
 const askHealthAI = async (req, res) => {
     try {
         const { question, healthData } = req.body;
-        // healthData là object tuỳ chọn, frontend gửi lên nếu muốn AI phân tích
-
+        
         if (!question || question.trim() === '') {
             return res.status(400).json({
                 success: false,
@@ -562,7 +553,6 @@ const askHealthAI = async (req, res) => {
 
 const getDashboardOverview = async (req, res) => {
     try {
-        // Lưu ý: Gọi từ healthService thay vì medicalService
         const overviewData = await healthService.getMedicalOverview();
         
         return res.status(200).json({
