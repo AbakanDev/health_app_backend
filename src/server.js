@@ -1,7 +1,7 @@
 const express = require('express');
 const authRoutes = require('./routes/authRoutes');
 const healthRoutes = require('./routes/healthRoutes');
-require('dotenv').config({ path: '../.env' });
+require('dotenv').config();
 process.env.TZ = 'Asia/Ho_Chi_Minh';
 const app = express();
 
